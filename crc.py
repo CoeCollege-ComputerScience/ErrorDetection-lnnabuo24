@@ -25,15 +25,39 @@ def xorDiv(d,g):
 def CRC(data, generator):
     # it looks like the extra zeroes are already tacked on here
 	data += "0" *(len(generator)-1)
+	
+	#print("beginning with " + data)
+	
 	while len(data) >= len(generator):
 		data = xorDiv(data, generator)
-	#print(data) # the remainder
+	print("end: " + data) # the remainder
+	
+	# wait
+	# dont tell me this is the only issue right
+	#data = data.zfill( len(generator) )
+	if len(data) < len(generator) - 1:
+	    #data += "0" * ( len(generator) - 1 - len(data) )
+	    data = data.zfill(len(generator) - 1)
+    #
+    # inhale
+    #
+    # exhale
+    # the issue was that the remainder was too short
+    # if the remainder was 1 with a generator of 1001, just "1" would get tacked on
+    # i was also storing the wrong number as the remainder, "1" would be stored as "100"
+    # (which is not 1 in binary)
+	
+	#print("end 2: " + data)
+	
+	#print(" / " + str(int(generator, 2)) + ", rem. " + str( int(data, 2) ) )
+	
 	return data
 
 def tackOnRemainder(data, generator):
     
     # get the remainder
     remainder = CRC(data, generator)
+    
     
     # i think this is it?
     # unless im mixing up addition and concatenation
@@ -49,9 +73,15 @@ def checkData(dataPlusRemainder, generator):
     #dataPlusRemainder = tackOnRemainder(data, generator)
     
     remainder = CRC(dataPlusRemainder, generator)
-    print("remainder (binary): " + remainder)
+    #remainder = xorDiv(dataPlusRemainder, generator)
+    print("[check] remainder (binary): " + remainder)
+    
+    if remainder == "":
+        print("this might be a bad thing here")
+        remainder = "0"
+    
     remainder = int(remainder, 2) # back to an integer
-    print("remainder (int): " + str(remainder))
+    print("[check] remainder (int): " + str(remainder))
     if remainder == 0:
     #if remainder == "0":
         # data was received correctly
@@ -66,6 +96,7 @@ cw = CRC(dataword, generator)
 print("cw: " + cw)
 
 print( checkData( dataword + cw, generator ) )
+print( checkData(dataword, generator) )
 
 
 #checkData( tackOnRemainder(dataword, generator), generator )
@@ -74,12 +105,18 @@ print( checkData( dataword + cw, generator ) )
 def stringToBinary(someString):
     result = ""
     for char in someString:
+        #print(char)
         # take char
         # get its integer representation
+        converted = ord(char)
         # convert that integer to binary
+        converted = bin(converted)
         # and strip off the 0b at the start
+        converted = converted[2:]
         # then make sure its actually 1 byte long (oops, forgot this)
-        result += bin( ord(char) )[2:].zfill(8)
+        converted = converted.zfill(8)
+        
+        result += converted
     
     return result
 
@@ -110,67 +147,6 @@ def binaryToString(someBinary):
 #print(binaryToString( stringToBinary("a") ))
 
 
-def readBinaryString(someBinary, dataLength, generator):
-    
-    currentCharCount = 0
-    currentString = ""
-    result = ""
-    isCurrentLineCorrupted = False
-    
-    msgSize = 8 + len(generator)
-    
-    
-    for i in range( len(someBinary) // msgSize ):
-        # grab the section being read
-        whatSection = someBinary[ i * msgSize:((i + 1) * msgSize) ]
-        
-        # tack on the remainder
-        #whatSection = tackOnRemainder(whatSection, generator)
-        # (now done inside checkData)
-        # nevermind this should just include the remainder?
-        
-        # okay
-        # *tack on the remainder* this time
-        #hi = tackOnRemainder(whatSection, generator)
-        
-        # is it corrupted
-        if checkData( whatSection, generator):
-            # nope
-            print("not corrupted")
-        else:
-            # yep
-            print("is corrupted")
-            isCurrentLineCorrupted = True
-        #print(whatSection)
-        #print(binaryToString(whatSection))
-        currentString += binaryToString(whatSection)
-        currentCharCount += 1
-        
-        if currentCharCount == dataLength:
-            # this is one full printed line
-            print("reset count here")
-            
-            # if needed, mark this line as corrupted
-            if isCurrentLineCorrupted:
-                currentString += " (corrupted line)"
-            
-            # reset variables
-            currentCharCount = 0
-            isCurrentLineCorrupted = False
-            result += currentString + "\n"
-            #print(currentString)
-            currentString = ""
-    
-    # add on the current string if anything is left over
-    if currentCharCount != 0:
-        if isCurrentLineCorrupted:
-            currentString += " (corrupted line)"
-        result += currentString
-    
-    result = result.strip()
-    print("end: " + result)
-
-
 
 
 def swapBinary(someBinary, index):
@@ -180,24 +156,115 @@ def swapBinary(someBinary, index):
     else:
         return someBinary[0:index] + "0" + someBinary[index + 1:]
 
-#something = createCRCBinary( stringToBinary("Eeee"), generator )
 
-# represent the message as a binary number
-#something = stringToBinary("Eeeeee")
+# okay
+# both sides have to agree on the generator
+def createCRCFile(someString, dataStringLen, generator):
+    print("abcde")
+    # i may have been tripping myself up in the instructions
+    # i believe i was
+    
+    result = ""
+    
+    for i in range( len(someString) // dataStringLen ):
+        # read dLen characters at a time
+        """
+        ending = (i + 1) * dataStringLen
+        if ending > len(someString):
+            # avoid going over, i think
+            ending = len(someString)
+        """
+        
+        # whatSection is a portion of someString
+        whatSection = someString[ i * dataStringLen:(i + 1) * dataStringLen ]
+        #whatSection = someString[ i * dataStringLen:ending ]
+        print("section " + str(i) + ": " + whatSection)
+        #print(len(whatSection))
+        
+        # convert it to binary
+        binary = stringToBinary(whatSection)
+        
+        # add the zeroes here(?)
+        # no
+        # i think
+        #binary += "0" * (len(generator) - 1)
+        
+        remainder = CRC(binary, generator)
+        
+        print("[creation] tacked on remainder: " + remainder)
+        
+        # *THEN* tack on the remainder
+        binary += remainder
+        #binary = bin( int(binary, 2) + int(remainder, 2) )[2:] + remainder
+        
+        #print("tacking on " + binary)
+        result += binary + "\n"
+    
+    # remove whitespace
+    result = result.strip()
+    
+    print("result: " + result)
+    return result
 
-# tack on the remainder
-#something = tackOnRemainder(something, generator)
 
-#readBinaryString(something, 8, generator)
+def readCRCString(someBinary, generator):
+    print("hi")
+    # okay
+    # they *agree* on the generator this time
+    splitBinary = someBinary.split("\n")
+    result = ""
+    
+    for line in splitBinary:
+        print("line: " + line)
+        
+        
+        
+        # okay
+        # okay
+        # wait
+        # line is (d + r)
+        # we want to calculate (d - r)
+        """
+        transmittedRemainder = line[-(len(generator) - 1):]
+        print("transmit: " + transmittedRemainder)
+        
+        minusRemainder = line[0 : len(line) - (len(generator) - 1) ]
+        
+        dMinusR = int(minusRemainder, 2) - int(transmittedRemainder, 2)
+        dMinusR = bin(dMinusR)[2:]
+        print("DmR: " + dMinusR)
+        print("???: " + CRC(dMinusR, generator))
+        
+        # wait a second...
+        minusRemainder = line[0 : len(line) - (len(generator) - 1) ]
+        print("removed remainder: " + minusRemainder)
+        checkers = CRC(minusRemainder, generator)
+        print("uhhh: " + checkers)
+        print("okay? " + CRC(line, generator))
+        """
+        
+        
+        #isFine = CRC(something, generator)
+        
+        isFine = checkData(line, generator)
+        print(isFine)
+        newLine = binaryToString(line)
+        #print("test " + binaryToString(minusRemainder))
+        #newLine = binaryToString(minusRemainder)
+        if isFine:
+            print(line + " is fine")
+        else:
+            print(line + " is not fine")
+            newLine += " (corrupted)"
+        
+        print("\n---\n")
+        result += newLine + "\n"
+    
+    result = result.strip()
+    print("result: " + result)
+    return result
 
+print("E: " + stringToBinary("E"))
 
-
-
-
-
-
-
-
-
-
-#
+fakeFile = createCRCFile("hello E", 1, generator)
+readCRCString(fakeFile, generator)
